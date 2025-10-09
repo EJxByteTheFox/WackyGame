@@ -1,1 +1,204 @@
-Hello Fuzzy Banana!
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Platformer</title>
+    <style>
+        body { margin: 0; overflow: hidden; }
+        canvas { display: block; }
+        #instructions {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            font-family: Arial, sans-serif;
+        }
+    </style>
+</head>
+<body>
+    <div id="instructions">
+        Arrow Keys - Move<br>
+        SPACE - Jump<br>
+        Mouse - Look around
+    </div>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.157.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.157.0/examples/jsm/"
+            }
+        }
+    </script>
+    <script type="module">
+        import * as THREE from 'three';
+        import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
+
+        // Scene setup
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x87CEEB); // Sky blue
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        document.body.appendChild(renderer.domElement);
+
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0x404040);
+        scene.add(ambientLight);
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+        directionalLight.position.set(5, 5, 5);
+        directionalLight.castShadow = true;
+        scene.add(directionalLight);
+
+        // Player
+        const playerGeometry = new THREE.CapsuleGeometry(0.5, 1, 4, 8);
+        const playerMaterial = new THREE.MeshPhongMaterial({ color: 0xff0000 });
+        const player = new THREE.Mesh(playerGeometry, playerMaterial);
+        player.position.set(0, 2, 0);
+        player.castShadow = true;
+        scene.add(player);
+
+        // Controls
+        const controls = new PointerLockControls(camera, document.body);
+        
+        // Click to start
+        document.addEventListener('click', function() {
+            controls.lock();
+        });
+
+        // Movement
+        let moveForward = false;
+        let moveBackward = false;
+        let moveLeft = false;
+        let moveRight = false;
+        let canJump = true;
+        let velocity = new THREE.Vector3();
+        const direction = new THREE.Vector3();
+
+        const onKeyDown = function(event) {
+            switch(event.code) {
+                case 'ArrowUp': moveForward = true; break;
+                case 'ArrowDown': moveBackward = true; break;
+                case 'ArrowLeft': moveLeft = true; break;
+                case 'ArrowRight': moveRight = true; break;
+                case 'Space': 
+                    if (canJump) {
+                        velocity.y = 15;
+                        canJump = false;
+                    }
+                    break;
+            }
+        };
+
+        const onKeyUp = function(event) {
+            switch(event.code) {
+                case 'ArrowUp': moveForward = false; break;
+                case 'ArrowDown': moveBackward = false; break;
+                case 'ArrowLeft': moveLeft = false; break;
+                case 'ArrowRight': moveRight = false; break;
+            }
+        };
+
+        document.addEventListener('keydown', onKeyDown);
+        document.addEventListener('keyup', onKeyUp);
+
+        // Platform Creation
+        function createPlatform(x, y, z, width, height, depth, movable = false) {
+            const geometry = new THREE.BoxGeometry(width, height, depth);
+            const material = new THREE.MeshPhongMaterial({ color: movable ? 0x00ffff : 0x00ff00 });
+            const platform = new THREE.Mesh(geometry, material);
+            platform.position.set(x, y, z);
+            platform.receiveShadow = true;
+            platform.userData.originalPosition = { x, y, z };
+            platform.userData.movable = movable;
+            platform.userData.moveDirection = 1;
+            platform.userData.moveSpeed = 0.05;
+            platform.userData.maxOffset = 5;
+            scene.add(platform);
+            return platform;
+        }
+
+        // Create platforms
+        const platforms = [
+            createPlatform(0, -0.5, 0, 10, 1, 10),    // Ground
+            createPlatform(8, 2, 0, 4, 1, 4, true),   // Platform W - moves up/down
+            createPlatform(-8, 4, 0, 4, 1, 4, true),  // Platform A - moves left/right
+            createPlatform(0, 6, -8, 4, 1, 4, true),  // Platform S - moves forward/backward
+            createPlatform(0, 8, 8, 4, 1, 4, true),   // Platform D - moves diagonally
+        ];
+
+        // Physics variables
+        const GRAVITY = -0.8;
+        const MOVE_SPEED = 0.3;
+
+        // Animation loop
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // Movement
+            direction.z = Number(moveForward) - Number(moveBackward);
+            direction.x = Number(moveRight) - Number(moveLeft);
+            direction.normalize();
+
+            if (moveForward || moveBackward) velocity.z = -direction.z * MOVE_SPEED;
+            if (moveLeft || moveRight) velocity.x = -direction.x * MOVE_SPEED;
+
+            // Apply gravity
+            velocity.y += GRAVITY * 0.1;
+
+            // Update player position
+            player.position.y += velocity.y * 0.1;
+            
+            // Ground collision
+            if (player.position.y < 1) {
+                player.position.y = 1;
+                velocity.y = 0;
+                canJump = true;
+            }
+
+            // Move player and camera
+            controls.moveRight(-velocity.x);
+            controls.moveForward(-velocity.z);
+            
+            // Update camera position to follow player
+            camera.position.copy(player.position);
+            camera.position.y += 1; // Offset camera above player
+
+            // Platform collision detection
+            platforms.forEach(platform => {
+                const platformBox = new THREE.Box3().setFromObject(platform);
+                const playerBox = new THREE.Box3().setFromObject(player);
+                
+                if (playerBox.intersectsBox(platformBox)) {
+                    // Check if collision is from above
+                    if (velocity.y < 0 && 
+                        player.position.y > platform.position.y + platform.geometry.parameters.height/2) {
+                        player.position.y = platform.position.y + platform.geometry.parameters.height/2 + 1;
+                        velocity.y = 0;
+                        canJump = true;
+                    }
+                }
+            });
+
+            // Friction
+            velocity.x *= 0.9;
+            velocity.z *= 0.9;
+
+            renderer.render(scene, camera);
+        }
+
+        // Window resize handler
+        window.addEventListener('resize', function() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        animate();
+    </script>
+</body>
+</html>
