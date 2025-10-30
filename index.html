@@ -71,20 +71,21 @@
         });
 
         // Movement
-        let moveForward = false;
-        let moveBackward = false;
-        let moveLeft = false;
-        let moveRight = false;
+        // Let's make these integers so that we can operate on them easier - Ellie
+        let moveForward = 0;
+        let moveBackward = 0;
+        let moveLeft = 0;
+        let moveRight = 0;
         let canJump = true;
         let velocity = new THREE.Vector3();
         const direction = new THREE.Vector3();
 
         const onKeyDown = function(event) {
             switch(event.code) {
-                case 'ArrowUp': moveForward = true; break;
-                case 'ArrowDown': moveBackward = true; break;
-                case 'ArrowLeft': moveLeft = true; break;
-                case 'ArrowRight': moveRight = true; break;
+                case 'ArrowUp': moveForward = 1; break;
+                case 'ArrowDown': moveBackward = 1; break;
+                case 'ArrowLeft': moveLeft = 1; break;
+                case 'ArrowRight': moveRight = 1; break;
                 case 'Space': 
                     if (canJump) {
                         velocity.y = 15;
@@ -96,10 +97,10 @@
 
         const onKeyUp = function(event) {
             switch(event.code) {
-                case 'ArrowUp': moveForward = false; break;
-                case 'ArrowDown': moveBackward = false; break;
-                case 'ArrowLeft': moveLeft = false; break;
-                case 'ArrowRight': moveRight = false; break;
+                case 'ArrowUp': moveForward = 0; break;
+                case 'ArrowDown': moveBackward = 0; break;
+                case 'ArrowLeft': moveLeft = 0; break;
+                case 'ArrowRight': moveRight = 0; break;
             }
         };
 
@@ -140,12 +141,14 @@
             requestAnimationFrame(animate);
 
             // Movement
-            direction.z = Number(moveForward) - Number(moveBackward);
-            direction.x = Number(moveRight) - Number(moveLeft);
+            direction.z = moveForward - moveBackward;
+            direction.x = nbmoveRight - moveLeft;
             direction.normalize();
 
-            if (moveForward || moveBackward) velocity.z = -direction.z * MOVE_SPEED;
-            if (moveLeft || moveRight) velocity.x = -direction.x * MOVE_SPEED;
+            if (moveForward || moveBackward) velocity.z = direction.z * MOVE_SPEED;
+            if (moveLeft || moveRight) velocity.x = direction.x * MOVE_SPEED;
+            
+            
 
             // Apply gravity
             velocity.y += GRAVITY * 0.1;
